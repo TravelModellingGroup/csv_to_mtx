@@ -212,6 +212,34 @@ fn build_matrix(data: &[(i32, i32, f32)], all_zones: &[i32]) -> Vec<f32> {
     matrix
 }
 
+enum WriterType {
+    Plain(BufWriter<File>),
+    Gzip(BufWriter<GzEncoder<File>>),
+}
+
+impl Write for WriterType {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            WriterType::Plain(writer) => writer.write(buf),
+            WriterType::Gzip(writer) => writer.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            WriterType::Plain(writer) => writer.flush(),
+            WriterType::Gzip(writer) => writer.flush(),
+        }
+    }
+    
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        match self {
+            WriterType::Plain(writer) => writer.write_all(buf),
+            WriterType::Gzip(writer) => writer.write_all(buf),
+        }
+    }
+}
+
 /// Writes the MTX file in the specified format. If the output file name ends with `.gz`,
 /// the file is written as a gzip-compressed file.
 ///
@@ -224,10 +252,10 @@ fn build_matrix(data: &[(i32, i32, f32)], all_zones: &[i32]) -> Vec<f32> {
 /// This function will panic if it fails to create or write to the output file.
 fn write_mtx_file(output_file_name: &str, all_zones: &[i32], matrix: &[f32]) -> std::io::Result<()> {
     let output_file = File::create(output_file_name)?;
-    let mut writer: Box<dyn Write> = if output_file_name.ends_with(".gz") {
-        Box::new(BufWriter::new(GzEncoder::new(output_file, Compression::default())))
+    let mut writer: WriterType = if output_file_name.ends_with(".gz") {
+        WriterType::Gzip(BufWriter::new(GzEncoder::new(output_file, Compression::default())))
     } else {
-        Box::new(BufWriter::new(output_file))
+        WriterType::Plain(BufWriter::new(output_file))
     };
 
     let zone_count = all_zones.len() as i32;
